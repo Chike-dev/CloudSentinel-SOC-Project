@@ -108,13 +108,19 @@ A lab EC2 instance was configured with a scoped IAM role and treated as a compro
 | Approximate detection time | ~24 minutes |
 | Pipeline response | EventBridge matched severity `>= 7`, SNS delivered email, Lambda logged the incident |
 
-Evidence:
+![GuardDuty finding — real credential-exfiltration detection at severity 8](screenshots/16-real-finding-guardduty.png)
 
-- `screenshots/15-simulation-a-recon-commands.png`
-- `screenshots/15b-credential-exfiltration-external.png`
-- `screenshots/16-real-finding-guardduty.png`
-- `screenshots/17-real-finding-email.png`
-- `screenshots/18-securityhub-real-finding.png`
+*GuardDuty independently produced `UnauthorizedAccess:IAMUser/InstanceCredentialExfiltration.OutsideAWS` at severity 8. Account, resource, and credential identifiers are redacted.*
+
+![SNS alert email delivered to the analyst inbox](screenshots/17-real-finding-email.png)
+
+*The EventBridge rule routed the finding through SNS. The email arrived in the analyst inbox within seconds of the finding being created.*
+
+Additional evidence:
+
+- `screenshots/15-simulation-a-recon-commands.png` — internal enumeration from the compromised instance
+- `screenshots/15b-credential-exfiltration-external.png` — instance-role credentials used from an external machine
+- `screenshots/18-securityhub-real-finding.png` — the same finding aggregated in Security Hub
 
 Full write-up: [`docs/attack-simulation-report.md`](docs/attack-simulation-report.md)
 
