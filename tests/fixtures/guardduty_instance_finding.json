@@ -1,0 +1,49 @@
+{
+  "version": "0",
+  "id": "eb-example-event-id-2",
+  "detail-type": "GuardDuty Finding",
+  "source": "aws.guardduty",
+  "account": "111122223333",
+  "time": "2026-07-14T19:00:00Z",
+  "region": "us-east-1",
+  "resources": [],
+  "detail": {
+    "schemaVersion": "2.0",
+    "accountId": "111122223333",
+    "region": "us-east-1",
+    "partition": "aws",
+    "id": "example-instance-finding-id",
+    "arn": "arn:aws:guardduty:us-east-1:111122223333:detector/xxxxxxxx/finding/example-instance-finding-id",
+    "type": "Backdoor:EC2/C&CActivity.B!DNS",
+    "resource": {
+      "resourceType": "Instance",
+      "instanceDetails": {
+        "instanceId": "i-instancefinding",
+        "instanceType": "t2.micro",
+        "availabilityZone": "us-east-1a",
+        "imageId": "ami-example",
+        "launchTime": "2026-07-14T15:00:00Z"
+      }
+    },
+    "service": {
+      "serviceName": "guardduty",
+      "detectorId": "xxxxxxxx",
+      "action": {
+        "actionType": "DNS_REQUEST",
+        "dnsRequestAction": {
+          "domain": "example-c2-domain.test",
+          "protocol": "UDP",
+          "blocked": false
+        }
+      },
+      "eventFirstSeen": "2026-07-14T18:30:00Z",
+      "eventLastSeen": "2026-07-14T19:00:00Z",
+      "count": 5
+    },
+    "severity": 8,
+    "createdAt": "2026-07-14T18:30:00Z",
+    "updatedAt": "2026-07-14T19:00:00Z",
+    "title": "EC2 instance i-instancefinding is querying a domain associated with C&C activity.",
+    "description": "An EC2 instance is querying a domain associated with a known command and control server."
+  }
+}
