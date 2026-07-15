@@ -17,7 +17,7 @@ This separation was intentional. Sample findings tested pipeline reliability; th
 
 ## Scope and authorization
 
-All testing was performed against resources owned by the project account. The EC2 instance, IAM roles, GuardDuty configuration, EventBridge rule, SNS topic, and Lambda function were created specifically for this lab.
+All testing was performed against resources owned by the project account. The EC2 instance, IAM roles, GuardDuty configuration, EventBridge rule, SNS topic, and Lambda function were created specifically for this Project.
 
 No third-party systems were targeted.
 
