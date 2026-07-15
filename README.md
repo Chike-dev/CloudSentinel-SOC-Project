@@ -38,14 +38,11 @@ AWS account activity
       └── GuardDuty
               └── managed threat detection from AWS telemetry
                       │
-                      ▼
-              Security Hub
-                      └── centralized findings dashboard
-                              │
-                              ▼
-              EventBridge rule: severity >= 7
-                      ├── SNS → SOC analyst email alert
-                      └── Lambda → incident parsing and response logging
+                      ├── Security Hub → centralized findings dashboard
+                      │
+                      └── EventBridge rule: severity >= 7
+                              ├── SNS → SOC analyst email alert
+                              └── Lambda → incident parsing and response logging
 ```
 
 CloudTrail and log storage provide the investigation record. GuardDuty is the primary managed detector. Security Hub centralizes visibility. EventBridge routes high-severity findings to response targets.
