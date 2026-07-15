@@ -1,0 +1,25 @@
+flowchart TD
+    A([AWS account activity])
+
+    A --> CT[CloudTrail]
+    A --> GD[GuardDuty<br/>managed threat detection]
+
+    CT --> S3[(S3<br/>audit evidence)]
+    CT --> CW1[CloudWatch Logs<br/>investigation logs]
+
+    GD --> SH[Security Hub<br/>centralized findings dashboard]
+    GD --> EB{EventBridge rule<br/>severity &ge; 7}
+
+    EB --> SNS[SNS<br/>SOC analyst email]
+    EB --> LMB[Lambda<br/>incident parsing<br/>+ response logging]
+
+    LMB --> CW2[CloudWatch Logs<br/>responder output]
+
+    classDef detect fill:#fde68a,stroke:#a16207,color:#000
+    classDef route  fill:#c7d2fe,stroke:#3730a3,color:#000
+    classDef store  fill:#bbf7d0,stroke:#166534,color:#000
+    classDef alert  fill:#fecaca,stroke:#991b1b,color:#000
+    class GD,SH detect
+    class EB route
+    class S3,CW1,CW2 store
+    class SNS,LMB alert
