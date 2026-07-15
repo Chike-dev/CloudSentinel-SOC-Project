@@ -94,10 +94,5 @@ This document captures the major architectural decisions behind CloudSentinel. T
 
 ---
 
-## ADR-010 — Document limitations explicitly
 
-**Decision:** The README and report include limitations and planned work.
 
-**Rationale:** Engineering documentation should state what was validated, what was simulated, and what remains future work.
-
-**Trade-off:** This is less flashy than overclaiming, but it is more credible.
