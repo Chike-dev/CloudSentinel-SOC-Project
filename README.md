@@ -1,27 +1,26 @@
-# CloudSentinel SOC Lab
+# CloudSentinel — AWS Threat Detection and Response Pipeline
 
-> A cloud-native Security Operations Center (SOC) built entirely on AWS — real-time
-> threat detection, automated incident response, and a **real** simulated attack that
-> the pipeline detected on its own.
+> AWS-native detection, aggregation, alerting, and incident-response logging pipeline built in `us-east-1`.
 
 ![AWS](https://img.shields.io/badge/AWS-Cloud-orange)
 ![GuardDuty](https://img.shields.io/badge/GuardDuty-Threat%20Detection-red)
-![Lambda](https://img.shields.io/badge/Lambda-Python-blue)
-![Security](https://img.shields.io/badge/Security-SOC-green)
-![IaC](https://img.shields.io/badge/Terraform-Planned-lightgrey)
+![Security%20Hub](https://img.shields.io/badge/Security%20Hub-Findings%20Aggregation-blue)
+![EventBridge](https://img.shields.io/badge/EventBridge-Event%20Routing-purple)
+![Lambda](https://img.shields.io/badge/Lambda-Python-green)
+![Terraform](https://img.shields.io/badge/Terraform-Planned-lightgrey)
 
 ---
 
-## What this is
+## Executive summary
 
-CloudSentinel is a scaled-down but fully working SOC pipeline on AWS. It continuously
-logs account activity, uses GuardDuty's ML-based detection to flag threats, aggregates
-everything into a single dashboard, and automatically alerts and responds when a
-high-severity finding appears — the same pattern real security teams run in production.
+CloudSentinel is a small-scale AWS security operations pipeline designed to model how cloud security teams collect telemetry, detect high-confidence threats, route findings, and initiate response workflows.
 
-Then I attacked it. I stole an EC2 instance's credentials, used them from outside AWS,
-and **GuardDuty caught it on its own** — no sample findings, a genuine detection that
-flowed through the entire pipeline to an email alert in under half an hour.
+The system uses CloudTrail for audit logging, S3 and CloudWatch Logs for evidence retention, GuardDuty for managed threat detection, Security Hub for findings aggregation, EventBridge for event routing, SNS for analyst notification, and Lambda for structured incident-response logging.
+
+The pipeline was validated in two stages:
+
+1. **Synthetic integration validation** — GuardDuty sample findings were generated to confirm that EventBridge, SNS, and Lambda were wired correctly.
+2. **Real detection validation** — an authorized credential-exfiltration scenario was performed against a lab EC2 instance. GuardDuty independently generated a high-severity `UnauthorizedAccess:IAMUser/InstanceCredentialExfiltration.OutsideAWS` finding, which triggered the alerting and response path.
 
 ---
 
@@ -29,106 +28,201 @@ flowed through the entire pipeline to an email alert in under half an hour.
 
 ![CloudSentinel Architecture](architecture/cloudsentinel-architecture.png)
 
-**Data flow:** Account activity → CloudTrail (audit logging) → S3 + CloudWatch Logs
-(storage) → GuardDuty (ML threat detection) → Security Hub (aggregation) → EventBridge
-(routes findings with severity ≥ 7) → Lambda (automated response) **and** SNS (email
-alert to the analyst).
+### Data flow
+
+```text
+AWS account activity
+      │
+      ├── CloudTrail → S3 + CloudWatch Logs
+      │       └── audit evidence and investigation logs
+      │
+      └── GuardDuty
+              └── managed threat detection from AWS telemetry
+                      │
+                      ▼
+              Security Hub
+                      └── centralized findings dashboard
+                              │
+                              ▼
+              EventBridge rule: severity >= 7
+                      ├── SNS → SOC analyst email alert
+                      └── Lambda → incident parsing and response logging
+```
+
+CloudTrail and log storage provide the investigation record. GuardDuty is the primary managed detector. Security Hub centralizes visibility. EventBridge routes high-severity findings to response targets.
 
 ---
 
-## Technologies used
+## Design goals
 
-| Service | Role in the pipeline |
-|---------|----------------------|
-| **CloudTrail** | Records every API call — the complete audit trail |
-| **S3 + CloudWatch Logs** | Centralized, encrypted log storage |
-| **GuardDuty** | ML-based threat detection; produces severity-scored findings |
-| **Security Hub** | Single-pane-of-glass aggregation of all findings |
-| **EventBridge** | Event router; fires only on findings with severity ≥ 7 |
-| **Lambda (Python)** | Serverless incident responder — parses, classifies, logs |
-| **SNS** | Real-time email alerting to the SOC analyst |
-| **IAM** | Least-privilege SOC analyst role (read-only) |
+| Goal | Implementation |
+|---|---|
+| Centralize AWS audit telemetry | CloudTrail with S3 and CloudWatch Logs destinations |
+| Use managed cloud threat detection | GuardDuty enabled in `us-east-1` |
+| Aggregate security findings | Security Hub dashboard and finding ingestion |
+| Automate high-severity response routing | EventBridge rule matching GuardDuty findings with severity `>= 7` |
+| Notify a human analyst | SNS email subscription to the SOC analyst inbox |
+| Preserve safe response behavior | Lambda runs in simulation/logging mode rather than modifying infrastructure |
+| Demonstrate least privilege | Read-only SOC analyst IAM role and scoped EC2 reconnaissance role |
 
 ---
 
-## How it was validated
+## Core components
 
-The pipeline was proven in two stages — synthetic first, then real.
+| Component | Purpose |
+|---|---|
+| **CloudTrail** | Records AWS API activity for audit and investigation. |
+| **S3** | Stores CloudTrail log evidence in a dedicated private bucket. |
+| **CloudWatch Logs** | Provides near-real-time log visibility for CloudTrail and Lambda execution output. |
+| **GuardDuty** | Detects suspicious cloud activity and assigns severity-scored findings. |
+| **Security Hub** | Aggregates findings into a centralized SOC dashboard. |
+| **EventBridge** | Routes high-severity GuardDuty findings to downstream response targets. |
+| **SNS** | Sends real-time email alerts to the analyst inbox. |
+| **Lambda** | Parses GuardDuty findings, classifies severity, identifies affected resources, and logs simulated response actions. |
+| **IAM** | Enforces role-based access and least-privilege investigation permissions. |
 
-### 1. Pipeline validation (sample findings)
+---
 
-GuardDuty sample findings confirmed the full path works end to end:
+## Validation strategy
 
-| Stage | Evidence |
-|-------|----------|
-| GuardDuty raised findings | `screenshots/11-guardduty-sample-findings.png` |
-| Security Hub aggregated them | `screenshots/12-SecurityHub-sample-findings.png` |
-| SNS delivered email | `screenshots/13-sns-email-alert.png` |
-| Lambda executed | `screenshots/14-lambda-cloudwatch-logs.png` |
+CloudSentinel was validated using a two-stage approach so that pipeline functionality and detection fidelity were evaluated separately.
 
-*These are GuardDuty sample findings (`"sample": true`) — used to validate the wiring,
-not claimed as a real attack.*
+### Stage 1 — Synthetic pipeline validation
 
-### 2. Real attack — Simulation A: credential exfiltration
+GuardDuty sample findings were generated to confirm that the end-to-end integration path worked before relying on live attacker behavior.
 
-I ran post-compromise reconnaissance inside a victim EC2 instance, pulled its IAM role
-credentials from the instance metadata service (IMDSv2), and used them from an external
-machine — a textbook credential-theft technique.
+| Validation point | Result | Evidence |
+|---|---|---|
+| GuardDuty generated findings | 404 sample findings, including high and critical severity | `screenshots/11-guardduty-sample-findings.png` |
+| Security Hub aggregated findings | Sample findings appeared in the centralized dashboard | `screenshots/12-SecurityHub-sample-findings.png` |
+| SNS delivered alert | Email notification received | `screenshots/13-sns-email-alert.png` |
+| Lambda executed | Incident output appeared in CloudWatch Logs | `screenshots/14-lambda-cloudwatch-logs.png` |
+
+Sample findings are documented as **integration tests**, not real attack evidence.
+
+### Stage 2 — Real detection validation
+
+A lab EC2 instance was configured with a scoped IAM role and treated as a compromised workload. Initial enumeration produced low-signal reconnaissance activity, but it did not reliably cross the high-severity automation threshold. The scenario was then escalated into a higher-fidelity credential-exfiltration test by using the instance role credentials from an external machine.
 
 | Result | Value |
-|--------|-------|
-| **Finding** | `UnauthorizedAccess:IAMUser/InstanceCredentialExfiltration.OutsideAWS` |
-| **Severity** | 8 / 10 (HIGH) |
-| **Detection** | GuardDuty, unprompted, ~24 min after the attack |
-| **Response** | EventBridge → SNS email delivered + Lambda incident logged |
+|---|---|
+| GuardDuty finding | `UnauthorizedAccess:IAMUser/InstanceCredentialExfiltration.OutsideAWS` |
+| Severity | 8 / 10 — High |
+| Region | `us-east-1` |
+| Approximate detection time | ~24 minutes |
+| Pipeline response | EventBridge matched severity `>= 7`, SNS delivered email, Lambda logged the incident |
 
-Evidence: `screenshots/15-simulation-a-recon-commands.png`,
-`screenshots/15b-credential-exfiltration-external.png`,
-`screenshots/16-real-finding-guardduty.png`,
-`screenshots/17-real-finding-email.png`,
-`screenshots/18-securityhub-real-finding.png`
+Evidence:
+
+- `screenshots/15-simulation-a-recon-commands.png`
+- `screenshots/15b-credential-exfiltration-external.png`
+- `screenshots/16-real-finding-guardduty.png`
+- `screenshots/17-real-finding-email.png`
+- `screenshots/18-securityhub-real-finding.png`
 
 Full write-up: [`docs/attack-simulation-report.md`](docs/attack-simulation-report.md)
 
 ---
 
-## Key concepts demonstrated
+## Design decisions
 
-- **End-to-end threat detection pipeline** — from log generation to alert delivery.
-- **Event-driven automation** — zero manual steps between detection and response.
-- **Least-privilege IAM** — a scoped, read-only SOC analyst role.
-- **Attacker + defender perspective** — built the detection *and* proved it works under
-  a real attack.
-- **Incident-response depth** — discovered that terminating a compromised instance does
-  **not** invalidate already-stolen temporary credentials; they remain valid until
-  expiry or explicit session revocation.
+| Decision | Rationale | Trade-off |
+|---|---|---|
+| Use GuardDuty as the primary detector | Provides AWS-native managed detection without deploying agents | Less customizable than custom detection engineering |
+| Trigger automation only on severity `>= 7` | Reduces alert noise and focuses automation on high-confidence findings | Medium findings require manual review |
+| Listen directly to GuardDuty in EventBridge | Simplifies routing and avoids dependency on Security Hub ingestion latency | Security Hub is still used for aggregation, not as the automation source |
+| Use SNS email for notification | Simple AWS-native alerting path with minimal setup | Less operationally rich than Slack, PagerDuty, or ServiceNow |
+| Keep Lambda in simulation mode | Demonstrates response logic safely without mutating live infrastructure | Does not perform real containment yet |
+| Use IAM roles instead of long-term keys on EC2 | Models temporary credential best practice | Requires instance profile setup |
+| Validate with sample findings before real attack | Confirms the integration path safely and repeatably | Must be clearly separated from real detection evidence |
+
+Additional detail: [`docs/design-decisions.md`](docs/design-decisions.md)
+
+---
+
+## Detection coverage
+
+| Threat behavior | Source | Status |
+|---|---|---|
+| GuardDuty high-severity finding routing | EventBridge | Validated with sample and real findings |
+| Email alert delivery | SNS | Validated |
+| Incident parsing and response logging | Lambda + CloudWatch Logs | Validated |
+| EC2 role credential exfiltration | GuardDuty | Validated with real finding |
+| Internal AWS enumeration from EC2 | CloudTrail / GuardDuty telemetry | Observed; did not reliably cross severity `>= 7` alone |
+| External port scanning | VPC Flow Logs + GuardDuty | Planned for v2 |
+
+See [`docs/detection-coverage.md`](docs/detection-coverage.md).
+
+---
+
+## Incident-response lesson learned
+
+Terminating the compromised EC2 instance did **not** immediately invalidate temporary credentials that had already been exfiltrated. The credentials remained valid until expiry because they were IAM role session credentials, not credentials controlled directly by the instance lifecycle.
+
+A complete response plan must account for:
+
+- role-session revocation,
+- credential expiry windows,
+- IAM role review,
+- CloudTrail investigation,
+- and containment of the affected workload.
+
+This is captured in the planned production hardening path for the Lambda responder.
 
 ---
 
 ## Repository structure
 
-```
-CloudSentinel-SOC-Project/
-├── README.md                     ← this page
-├── architecture/                 ← architecture diagram
+```text
+CloudSentinel-SOC-Lab/
+├── README.md
+├── architecture/
+│   ├── cloudsentinel-architecture.png
+│   └── cloudsentinel-architecture.mmd
 ├── docs/
-│   └── attack-simulation-report.md
+│   ├── attack-simulation-report.md
+│   ├── cleanup-and-cost-control.md
+│   ├── design-decisions.md
+│   ├── detection-coverage.md
+│   └── operational-runbook.md
 ├── eventbridge/
 │   └── guardduty_high_severity_rule.json
 ├── lambda/
 │   └── incident_responder.py
-├── screenshots/                  ← full build + attack evidence (01–18)
-└── terraform/                    ← Infrastructure as Code (planned, Phase 5)
+├── screenshots/
+│   └── build and validation evidence
+└── terraform/
+    └── planned IaC implementation
 ```
+
+---
+
+## Limitations
+
+- Lambda currently performs incident parsing and simulated response logging; it does not automatically quarantine infrastructure.
+- EventBridge automation is scoped to GuardDuty findings with severity `>= 7`.
+- The deployment is single-region (`us-east-1`). A production deployment would require multi-region event routing or centralized aggregation.
+- Security Hub is used for visibility and aggregation; the current automation source is GuardDuty directly.
+- Terraform codification is planned but not yet implemented.
+- External port-scan validation with VPC Flow Logs is planned for v2.
 
 ---
 
 ## Roadmap
 
-- **Simulation B** — external `nmap` port scan + VPC Flow Logs network-recon detection.
-- **Terraform codification** — deploy the entire pipeline with `terraform apply` / tear
-  down with `terraform destroy`.
+- Add VPC Flow Logs and validate external network reconnaissance detection.
+- Convert the console build into Terraform.
+- Add automated containment options behind explicit safety flags.
+- Add IAM role session revocation logic to the Lambda responder.
+- Add Slack, Teams, PagerDuty, or ticketing integration as an alternate notification channel.
+- Add centralized multi-region finding aggregation.
 
 ---
 
-*Built by [Chike-dev](https://github.com/Chike-dev) · AWS Free Tier · region us-east-1*
+## Cleanup and cost control
+
+Temporary EC2 resources were terminated after validation, and chargeable security services should be reviewed after the project is complete. See [`docs/cleanup-and-cost-control.md`](docs/cleanup-and-cost-control.md).
+
+---
+
+Built by [Chike-dev](https://github.com/Chike-dev) in an AWS lab account. Region: `us-east-1`.
