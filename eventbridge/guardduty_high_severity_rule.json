@@ -1,0 +1,31 @@
+{
+  "ruleName": "cloudsentinel-guardduty-high-severity",
+  "description": "Routes HIGH severity GuardDuty findings (severity >= 7) to SNS and Lambda",
+  "eventBus": "default",
+  "state": "ENABLED",
+  "eventPattern": {
+    "source": ["aws.guardduty"],
+    "detail-type": ["GuardDuty Finding"],
+    "detail": {
+      "severity": [
+        {
+          "numeric": [">=", 7]
+        }
+      ]
+    }
+  },
+  "targets": [
+    {
+      "id": "cloudsentinel-sns-target",
+      "type": "SNS",
+      "target": "cloudsentinel-alerts",
+      "purpose": "Email alert to the SOC analyst"
+    },
+    {
+      "id": "cloudsentinel-lambda-target",
+      "type": "Lambda",
+      "target": "cloudsentinel-incident-responder",
+      "purpose": "Automated incident response and structured logging"
+    }
+  ]
+}
